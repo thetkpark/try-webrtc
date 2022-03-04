@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import io from 'socket.io-client'
+import Peer from 'simple-peer'
+import axios from 'axios'
 
 function App() {
-  const [localStream, setLocalStream] = useState(null)
-  const [remoteStream, setRemoteStream] = useState(null)
+  // const [localStream, setLocalStream] = useState(null)
+  // const [remoteStream, setRemoteStream] = useState(null)
   const [username, setUsername] = useState('')
-  const [onlineUsers, setOnlineUsers] = useState([])
+  const [meetingId, setMeetingId] = useState('')
 
   const socket = useRef()
   const localVideo = useRef()
@@ -13,14 +15,11 @@ function App() {
 
   useEffect(() => {
     socket.current = io('http://localhost:8080', { transports: ['websocket'] })
-    socket.current.on('online-users', ({ users }) => {
-      console.log(users)
-      setOnlineUsers(users)
-    })
 
     navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(stream => {
-      setLocalStream(stream)
+      // setLocalStream(stream)
       localVideo.current.srcObject = stream
+      localVideo.current.src = window.URL.createObjectURL(stream)
     })
   }, [])
 
@@ -29,34 +28,63 @@ function App() {
     socket.current.emit('set-username', { username })
   }
 
-  const onCallUser = id => {
-    console.log(`Calling ${id}`)
-  }
+  const onJoinMeeting = async e => {
+    e.preventDefault()
 
-  const renderOnlineUsers = () => {
-    return (
-      <div>
-        <ul>
-          {onlineUsers.map(user => (
-            <span>
-              <li key={user.id}>{user.username}</li>
-              <button onClick={() => onCallUser(user.id)}>Call</button>
-            </span>
-          ))}
-        </ul>
-      </div>
-    )
+    const res = await axios.get('http://localhost:8080/api/is-initiator', {
+      params: { id: meetingId }
+    })
+
+    console.log(res.data)
+    socket.current.emit('join-meeting', { id: meetingId })
+
+    // create peer
+    socket.current.on('start-peering', () => {
+      const peer = new Peer({
+        stream: localVideo.current.srcObject,
+        initiator: res.data.isInitiator
+      })
+
+      peer.on('signal', data => {
+        console.log('Got signal data')
+        socket.current.emit('user-signal', { id: meetingId, signal: data })
+      })
+
+      peer.on('stream', stream => {
+        console.log('got stream')
+        remoteVideo.current.srcObject = stream
+        remoteVideo.current.src = window.URL.createObjectURL(stream)
+      })
+
+      peer.on('connect', () => {
+        console.log('Peer connected')
+      })
+
+      socket.current.on('new-signal', ({ signal }) => {
+        console.log('Recieved signal from socket')
+        peer.signal(signal)
+      })
+    })
   }
 
   return (
     <div className="App">
       <video playsInline autoPlay ref={localVideo}></video>
+      <video playsInline autoPlay ref={remoteVideo}></video>
       <form onSubmit={onSubmitUsername}>
         <label>Username</label>
         <input type="text" value={username} onChange={e => setUsername(e.target.value)} />
         <button type="submit">Submit</button>
       </form>
-      {renderOnlineUsers()}
+      <form onSubmit={onJoinMeeting}>
+        <label>Meeting ID</label>
+        <input
+          type="text"
+          value={meetingId}
+          onChange={e => setMeetingId(e.target.value)}
+        />
+        <button type="submit">Join Meeting</button>
+      </form>
     </div>
   )
 }
