@@ -35,17 +35,14 @@ const isInitiator = (meetingId) => {
 	return meetings[meetingId].userInRoom.length === 0
 }
 
-const disconnectUser = (socket, meetingId, socketId) => {
+const disconnectUser = (socket, meetingId) => {
 	const meeting = meetings[meetingId]
 	if (meeting) {
-		const userIndex = meeting.userInRoom.find((user) => user.id === socket.id)
-		if (userIndex !== -1) {
-			meeting.userInRoom.splice(userIndex, 1)
-			socket.in(meetingId).emit("user-left")
-			socket.leave(meetingId)
-		}
+		meeting.userInRoom.filter((user) => user.id !== socket.id)
+		socket.in(meetingId).emit("user-left")
+		socket.leave(meetingId)
 		console.log(meeting)
-		users[socketId] = null
+		users[socket.id] = null
 		console.log(users)
 	}
 }
@@ -77,25 +74,18 @@ io.on("connection", (socket) => {
 		const meeting = meetings[id]
 		if (meeting) {
 			users[socket.id] = { ...users[socket.id], meetingId: id }
-			if (isInitiator(id)) {
+			if (meeting.userInRoom.length < 2) {
 				meeting.userInRoom.push({
 					id: socket.id,
-					username: users[socket.id].username,
-					signals: []
-				})
-				socket.join(id)
-			} else if (meeting.userInRoom.length === 1) {
-				// There is someone waiting in the room
-				meeting.userInRoom.push({
-					id: socket.id,
-					username: users[socket.id].username,
-					signals: []
+					username: users[socket.id].username
 				})
 				socket.join(id)
 
 				// Send the initiator signal to start peering
-				socket.in(id).emit("start-peering", true)
-				socket.emit("start-peering", false)
+				if (meeting.userInRoom.length === 2) {
+					socket.in(id).emit("start-peering", true)
+					socket.emit("start-peering", false)
+				}
 			}
 		}
 	})
@@ -105,7 +95,7 @@ io.on("connection", (socket) => {
 	})
 
 	socket.on("leave-meeting", () =>
-		disconnectUser(socket, users[socket.id].meetingId, socket.id)
+		disconnectUser(socket, users[socket.id].meetingId)
 	)
 
 	// socket.on("end-meeting", ({ id }) => {
@@ -117,6 +107,6 @@ io.on("connection", (socket) => {
 	// })
 
 	socket.on("disconnect", () => {
-		disconnectUser(socket, users[socket.id].meetingId, socket.id)
+		disconnectUser(socket, users[socket.id].meetingId)
 	})
 })
