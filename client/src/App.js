@@ -7,6 +7,8 @@ function App() {
   const [username, setUsername] = useState('')
   const [meetingId, setMeetingId] = useState('')
   const [isInMeeting, setIsInMeeting] = useState(false)
+  const [isMicOn, setIsMicOn] = useState(true)
+  const [isCameraOn, setIsCameraOn] = useState(true)
 
   const socket = useRef()
   const peerRef = useRef()
@@ -43,6 +45,8 @@ function App() {
 
     peer.on('stream', stream => {
       console.log('got stream')
+      stream.getAudioTracks()[0].enabled = isMicOn
+      stream.getVideoTracks()[0].enabled = isCameraOn
       remoteVideo.current.srcObject = stream
       remoteVideo.current.src = window.URL.createObjectURL(stream)
     })
@@ -79,6 +83,16 @@ function App() {
     destroyRemoteStream()
   }
 
+  const onToggleMic = () => {
+    localVideo.current.srcObject.getAudioTracks()[0].enabled = !isMicOn
+    setIsMicOn(!isMicOn)
+  }
+
+  const onToggleVideo = () => {
+    localVideo.current.srcObject.getVideoTracks()[0].enabled = !isCameraOn
+    setIsCameraOn(!isCameraOn)
+  }
+
   const destroyRemoteStream = () => {
     peerRef.current.destroy()
     remoteVideo.current.srcObject = null
@@ -90,6 +104,10 @@ function App() {
     if (!isInMeeting) return null
     return (
       <div>
+        <button onClick={onToggleVideo}>
+          {isCameraOn ? 'Close Camera' : 'Open Camera'}
+        </button>
+        <button onClick={onToggleMic}>{isMicOn ? 'Mute' : 'Unmute'}</button>
         <button onClick={onDisconnectMeeting}>Leave</button>
       </div>
     )
