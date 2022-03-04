@@ -30,8 +30,24 @@ const users = {}
 
 server.listen(8080)
 
+// Helper functions
 const isInitiator = (meetingId) => {
 	return meetings[meetingId].userInRoom.length === 0
+}
+
+const disconnectUser = (socket, meetingId, socketId) => {
+	const meeting = meetings[meetingId]
+	if (meeting) {
+		const userIndex = meeting.userInRoom.find((user) => user.id === socket.id)
+		if (userIndex !== -1) {
+			meeting.userInRoom.splice(userIndex, 1)
+			socket.in(meetingId).emit("user-left")
+			socket.leave(meetingId)
+		}
+		console.log(meeting)
+		users[socketId] = null
+		console.log(users)
+	}
 }
 
 app.use(cors())
@@ -60,6 +76,7 @@ io.on("connection", (socket) => {
 		// id is the meeting id
 		const meeting = meetings[id]
 		if (meeting) {
+			users[socket.id] = { ...users[socket.id], meetingId: id }
 			if (isInitiator(id)) {
 				meeting.userInRoom.push({
 					id: socket.id,
@@ -87,18 +104,9 @@ io.on("connection", (socket) => {
 		socket.to(id).emit("new-signal", { signal })
 	})
 
-	socket.on("leave-meeting", ({ id: meetingId }) => {
-		const meeting = meetings[meetingId]
-		if (meeting) {
-			const userIndex = meeting.userInRoom.find((user) => user.id === socket.id)
-			if (userIndex !== -1) {
-				meeting.userInRoom.splice(userIndex, 1)
-				socket.in(meetingId).emit("user-left")
-				socket.leave(meetingId)
-			}
-			console.log(meeting)
-		}
-	})
+	socket.on("leave-meeting", () =>
+		disconnectUser(socket, users[socket.id].meetingId, socket.id)
+	)
 
 	// socket.on("end-meeting", ({ id }) => {
 	// 	const meeting = meetings.find((meeting) => meeting.id === id)
@@ -108,5 +116,7 @@ io.on("connection", (socket) => {
 	// 	}
 	// })
 
-	socket.on("disconnect", () => {})
+	socket.on("disconnect", () => {
+		disconnectUser(socket, users[socket.id].meetingId, socket.id)
+	})
 })
