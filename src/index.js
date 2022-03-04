@@ -43,6 +43,8 @@ app.get("/api/is-initiator", (req, res) => {
 	res.send({ isInitiator: isInitiator(req.query.id) })
 })
 
+app.use(express.static("client/build"))
+
 io.on("connection", (socket) => {
 	console.log("A user is connected")
 	if (!users[socket.id]) {
@@ -75,7 +77,8 @@ io.on("connection", (socket) => {
 				socket.join(id)
 
 				// Send the initiator signal to start peering
-				io.in(id).emit("start-peering")
+				socket.in(id).emit("start-peering", true)
+				socket.emit("start-peering", false)
 			}
 		}
 	})
@@ -84,24 +87,26 @@ io.on("connection", (socket) => {
 		socket.to(id).emit("new-signal", { signal })
 	})
 
-	socket.on("user-disconnect", ({ id: meetingId }) => {
-		const meeting = meetings[id]
+	socket.on("leave-meeting", ({ id: meetingId }) => {
+		const meeting = meetings[meetingId]
 		if (meeting) {
-			const user = meeting.userInRoom.find((user) => user.id === socket.id)
-			if (user) {
-				meeting.userInRoom = meeting.userInRoom.filter(
-					(user) => user.id !== socket.id
-				)
+			const userIndex = meeting.userInRoom.find((user) => user.id === socket.id)
+			if (userIndex !== -1) {
+				meeting.userInRoom.splice(userIndex, 1)
+				socket.in(meetingId).emit("user-left")
 				socket.leave(meetingId)
 			}
+			console.log(meeting)
 		}
 	})
 
-	socket.on("end-meeting", ({ id }) => {
-		const meeting = meetings.find((meeting) => meeting.id === id)
-		if (meeting) {
-			meeting.userInRoom = []
-			io.in(id).emit("end-meeting")
-		}
-	})
+	// socket.on("end-meeting", ({ id }) => {
+	// 	const meeting = meetings.find((meeting) => meeting.id === id)
+	// 	if (meeting) {
+	// 		meeting.userInRoom = []
+	// 		io.in(id).emit("end-meeting")
+	// 	}
+	// })
+
+	socket.on("disconnect", () => {})
 })

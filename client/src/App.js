@@ -9,11 +9,15 @@ function App() {
   const [isInMeeting, setIsInMeeting] = useState(false)
 
   const socket = useRef()
+  const peerRef = useRef()
   const localVideo = useRef()
   const remoteVideo = useRef()
 
   useEffect(() => {
-    socket.current = io('http://localhost:8080', { transports: ['websocket'] })
+    socket.current = io(
+      'https://2508-2405-9800-bc11-1509-c4cd-c769-12b9-423b.ap.ngrok.io',
+      { transports: ['websocket'] }
+    )
 
     navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(stream => {
       localVideo.current.srcObject = stream
@@ -41,7 +45,6 @@ function App() {
       console.log('got stream')
       remoteVideo.current.srcObject = stream
       remoteVideo.current.src = window.URL.createObjectURL(stream)
-      setIsInMeeting(true)
     })
 
     peer.on('connect', () => {
@@ -52,30 +55,49 @@ function App() {
       console.log('Recieved signal from socket')
       peer.signal(signal)
     })
+
+    socket.current.on('user-left', () => {
+      console.log('user left')
+      destroyRemoteStream()
+    })
+
+    peerRef.current = peer
   }
 
   const onJoinMeeting = async e => {
     e.preventDefault()
 
-    const res = await axios.get('http://localhost:8080/api/is-initiator', {
-      params: { id: meetingId }
-    })
-
-    console.log(res.data)
     socket.current.emit('join-meeting', { id: meetingId })
 
     // wait for start-peering event
-    socket.current.on('start-peering', () => onStartPeering(res.data.isInitiator))
+    socket.current.on('start-peering', onStartPeering)
+    setIsInMeeting(true)
   }
 
   const onDisconnectMeeting = () => {
-    socket.current.emit('user-disconnect', { id: meetingId })
+    socket.current.emit('leave-meeting', { id: meetingId })
+    destroyRemoteStream()
+  }
+
+  const destroyRemoteStream = () => {
+    peerRef.current.destroy()
+    remoteVideo.current.srcObject = null
+    remoteVideo.current.src = null
     setIsInMeeting(false)
+  }
+
+  const renderInMeetingComponents = () => {
+    if (!isInMeeting) return null
+    return (
+      <div>
+        <button onClick={onDisconnectMeeting}>Leave</button>
+      </div>
+    )
   }
 
   return (
     <div className="App">
-      <video playsInline autoPlay ref={localVideo}></video>
+      <video playsInline autoPlay ref={localVideo} muted></video>
       <video playsInline autoPlay ref={remoteVideo}></video>
       <form onSubmit={onSubmitUsername}>
         <label>Username</label>
@@ -91,7 +113,7 @@ function App() {
         />
         <button type="submit">Join Meeting</button>
       </form>
-      {isInMeeting ? <button onClick={onDisconnectMeeting}>Disconnect</button> : null}
+      {renderInMeetingComponents()}
     </div>
   )
 }
