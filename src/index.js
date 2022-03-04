@@ -84,7 +84,7 @@ io.on("connection", (socket) => {
 					signals: []
 				})
 				socket.join(id)
-			} else {
+			} else if (meeting.userInRoom.length === 1) {
 				// There is someone waiting in the room
 				meeting.userInRoom.push({
 					id: socket.id,
