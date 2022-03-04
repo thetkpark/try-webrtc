@@ -16,10 +16,7 @@ function App() {
   const remoteVideo = useRef()
 
   useEffect(() => {
-    socket.current = io(
-      'https://2508-2405-9800-bc11-1509-c4cd-c769-12b9-423b.ap.ngrok.io',
-      { transports: ['websocket'] }
-    )
+    socket.current = io('https://try-webrtc-wss.loca.lt', { transports: ['websocket'] })
 
     navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(stream => {
       localVideo.current.srcObject = stream

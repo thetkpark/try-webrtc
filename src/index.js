@@ -38,11 +38,13 @@ const isInitiator = (meetingId) => {
 const disconnectUser = (socket, meetingId) => {
 	const meeting = meetings[meetingId]
 	if (meeting) {
-		meeting.userInRoom.filter((user) => user.id !== socket.id)
+		meeting.userInRoom = meeting.userInRoom.filter(
+			(user) => user.id !== socket.id
+		)
 		socket.in(meetingId).emit("user-left")
 		socket.leave(meetingId)
 		console.log(meeting)
-		users[socket.id] = null
+		delete users[socket.id].meetingId
 		console.log(users)
 	}
 }
