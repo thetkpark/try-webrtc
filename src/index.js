@@ -84,6 +84,19 @@ io.on("connection", (socket) => {
 		socket.to(id).emit("new-signal", { signal })
 	})
 
+	socket.on("user-disconnect", ({ id: meetingId }) => {
+		const meeting = meetings[id]
+		if (meeting) {
+			const user = meeting.userInRoom.find((user) => user.id === socket.id)
+			if (user) {
+				meeting.userInRoom = meeting.userInRoom.filter(
+					(user) => user.id !== socket.id
+				)
+				socket.leave(meetingId)
+			}
+		}
+	})
+
 	socket.on("end-meeting", ({ id }) => {
 		const meeting = meetings.find((meeting) => meeting.id === id)
 		if (meeting) {
